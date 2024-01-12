@@ -301,7 +301,7 @@ trip_clean %>%
 trip_clean %>% 
   filter(duration_min < 24 * 60 & duration_min >= 1) %>% 
   ggplot(aes(x = duration_min)) + 
-  geom_histogram()
+  geom_freqpoly()
 ```
 ```{r}
 # calculate the ratio where duration is less than 1 minute
@@ -315,5 +315,22 @@ trip_clean %>%
   filter(duration_min >= 24 * 60) %>% 
   nrow() / 
   nrow(trip_clean)
+```
+
+```{r}
+trip_clean %>% 
+  filter(duration_min<24*60 & duration_min >= 1) %>% 
+  group_by(member_casual) %>% 
+  count(day_of_week) %>% 
+  arrange(desc(n)) %>% 
+  mutate(n = n/sum(n),
+         day_of_week = fct_reorder(day_of_week, n)) %>% 
+  ggplot(aes(x = day_of_week, y = n, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "bike usage in days differeciated by user types",
+       x = "days",
+       y = "percentage") +
+  theme_minimal()
+    
 ```
 
