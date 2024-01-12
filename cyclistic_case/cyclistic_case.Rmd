@@ -1,40 +1,67 @@
 ---
 title: "Cyclistic Case Study"
 output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
+
 # Business Task
-  
-  determine the difference between casual bike usage and annual member
-  
+
+determine the difference between casual bike usage and annual member
+
 # Stakeholders
-  * executive team
-  * director of marketing
-  * marketing analytics team
-  
+
+-   executive team
+-   director of marketing
+-   marketing analytics team
+
 # Data Source
 
-  The [data](https://divvy-tripdata.s3.amazonaws.com/index.html) has been made available by Motivate International Inc. under this [license](https://divvybikes.com/data-license-agreement). 
-  
-  The html page lists multiple datasets in .zip file, in order to accomplish the business task, I am going to use the most recent data which contains the 11 months trip data, downloadable from `202301-divvy-tripdata.zip - 202311-divvy-tripdata.zip`. 
-  
-  With large size of dataset, the spreadsheet is not ideal to finish the task. Therefore, RStudio is preferred.
+The [data](https://divvy-tripdata.s3.amazonaws.com/index.html) has been
+made available by Motivate International Inc. under this
+[license](https://divvybikes.com/data-license-agreement).
+
+The html page lists multiple data sets in .zip file, in order to
+accomplish the business task, I am going to use the most recent data
+which contains the 11 months trip data:
+(`202301-divvy-tripdata.zip) - (202311-divvy-tripdata.zip)`.
+
+With large size of data set, the spreadsheet is not ideal to finish the
+task. Therefore, RStudio is preferred.
+
 ```{r load-library}
 library(tidyverse)
-library(skimr)
-library(stringr)
+library(skimr)  # summary stats
+library(stringr)  # work with text
 library(lubridate)  # extract date and time
 library(ggplot2)  # visualization
-library(forcats)  # recorder bar-graph by value
+library(forcats)  # recorder graph by value
 ```
 
 # Load Data
 
-  There are 11 separated files indicate the trip condition of each month, so the first step is to combine the data into a whole dataset.
-  
-  The structure of data is shown below. From the summary statistics, there are 
-  * *7 categorical variables, 4 numeric variables, and 2 datetime variables*
-  * both *6751 missing values* in `end_lng`(ending longitute) and `end_lat`(ending latitute)
-  * about *15% to 17% of incomplete rate* in four categorical variables including `start_station_name, start_station_id, end_station_name, end_station_id`
+There are 11 separated files indicate the trip condition of each month,
+so the first step is to combine the data into a whole data set.
+
+The structure of data is shown below. From the summary statistics, there
+are
+
+-   *7 categorical variables*
+
+-   *4 numeric variables*
+
+-   *2 datetime variables*
+
+-   some variables contains bunch *of missing values*
+
+    -   `end_lng`(ending longitude) and `end_lat`(ending latitude)
+        contains 6751 missings
+
+    -   about *15% to 17% of incomplete rate* in four categorical
+        variables including
+        `start_station_name, start_station_id, end_station_name, end_station_id`
+
 ```{r load-data}
 tripdata_01 <- read_csv("202301-divvy-tripdata.csv")
 tripdata_02 <- read_csv("202302-divvy-tripdata.csv")
@@ -64,46 +91,74 @@ tripdata <-
 skim_without_charts(tripdata)
 ```
 
-## Data Cleaning 
+## Data Cleaning
 
-  The name of columns are listed below. I am going to do:
-  1. remove duplicates
-  2. remove records where end time is earlier than start time
-  3. remove records with missing values
-  
+The over view of column names are shown below
+
 ```{r name-of-columns}
 colnames(tripdata)
 ```
+
+I am going to do:
+
+1.  remove duplicates
+2.  remove records where end time is earlier than start time
+3.  remove records with missing values
+
+#### Remove duplicates
+
 ```{r remove_duplicates}
 trip_no_dup <- 
   tripdata %>% 
   distinct()
 ```
+
+#### Remove duration less than 0
+
 ```{r remove-duration-less-than-0}
 trip_norm <- trip_no_dup %>% 
   mutate(duration_min = round(as.numeric((ended_at - started_at)/60), 2)) %>% # convert second to min
   mutate(day_of_week = weekdays(started_at)) %>% 
   filter(duration_min > 0)
 ```
+
+After removing the 0-duration, I see that there are outliers in both
+upper bound and lower bound for the `duration_min` variable. Therefore,
+I go ahead and check the percentage where duration is less than 1 minute
+and more than 24 hours to make sure they do not account for lots of data
+points.
+
 ```{r stats-of-duration}
 # summary of duration in minutes
 trip_norm %>% 
   select(duration_min) %>% 
   summary()
 ```
+
 ```{r calculate-the-duration-boundary}
 # calculate the ratio where duration is less than 1 minute
-trip_norm %>% 
+less_than_1 <- trip_norm %>% 
   filter(duration_min < 1) %>% 
   nrow() /
   nrow(trip_norm)
 
 # calculate the ratio where people use over 24 hrs
-trip_norm %>% 
+greater_than_24 <- trip_norm %>% 
   filter(duration_min >= 24 * 60) %>% 
   nrow() / 
   nrow(trip_norm)
+
+paste("the duration less than 1 is about ", round(less_than_1*100, 2), "% of the overall records")
+paste("the duration less than 1 is about ", round(greater_than_24*100, 2), "% of the overall records")
 ```
+
+After the calculation, and I see that the total duration which include
+less than 1 minute and greater than 24 hours only account for no more
+than 3% of data points. Therefore, these data is good to disappear.
+
+In addition, I am interested in the time range of bike using. So, the
+data has been added another feature which extracted from the
+`started_at` and `ended_at`
 
 ```{r keep-duration-in-bound}
 # define the time range for morning, afternoon, evening and nighttime
@@ -118,13 +173,18 @@ trip_norm <- trip_norm %>%
                                     ifelse(started_time >= "18:00:00" & started_time < "21:00:00", "evening(6pm-9pm)", "nighttime(9pm-6am)"))))
   
 ```
+
+#### Remove missing value
+
 ```{r remove-missing-values}
 trip_clean <- trip_norm %>% 
   filter(str_length(start_station_id) > 0) %>% 
   filter(str_length(end_station_id) > 0) %>% 
   select(-c(start_lat, start_lng, end_lat, end_lng, started_at, ended_at, started_time, ended_time))  # remove longitude and latitude
 ```
+
 #### Summary After Cleaning
+
 ```{r summary-after-cleaning}
 skim_without_charts(trip_clean)
 
@@ -134,11 +194,14 @@ skim_without_charts(trip_clean)
 
 # Analyze Data
 
-```{r}
-colnames(trip_clean)  # double check the column name
-```
+For the annual member, there are only two bike types being used: classic
+and electric
 
+for the non-member user, there are three bike types being used: classic,
+electric and docked
 
+Meanwhile, the number of member user is about double amount than the
+number of non-member user
 
 ```{r}
 # the difference in rideable_type by different plans
@@ -151,8 +214,10 @@ trip_clean %>%
 # the overall difference by different plans
 trip_clean %>% 
   select(member_casual) %>% 
-  count(member_casual)
+  count(member_casual) %>% 
+  mutate(percentage = n / sum(n))
 ```
+
 ```{r}
 # check why NA appear in some rows
 trip_clean %>% 
@@ -187,6 +252,7 @@ pop_start_station %>%
   arrange(desc(casual)) %>%
   head(10)
 ```
+
 ```{r}
 # end station
 pop_end_station <- 
@@ -222,6 +288,7 @@ trip_clean %>%
 ```
 
 # Visualization
+
 ```{r user-type-ratio}
 trip_clean %>% 
   count(member_casual) %>% 
@@ -235,8 +302,6 @@ trip_clean %>%
        y = "percentage") 
   
 ```
-
-
 
 ```{r top-5-start-station}
 pop_start_station %>% 
@@ -252,6 +317,7 @@ pop_start_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
+
 ```{r top-5-end-station}
 pop_end_station %>% 
   pivot_longer(cols = c(casual, member), names_to = "user_types") %>% 
@@ -266,6 +332,7 @@ pop_end_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
+
 ```{r differentiate-by-days}
 # differentiate by user type
 trip_clean %>% 
@@ -290,6 +357,7 @@ trip_clean %>%
   arrange(desc(n))
     
 ```
+
 ```{r differentiate-by-time-range}
 # time range in general
 trip_clean %>% 
@@ -333,4 +401,3 @@ trip_clean %>%
        title = "popular month to use bike by different user types") +
   theme_minimal()
 ```
-
