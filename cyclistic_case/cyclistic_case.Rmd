@@ -279,13 +279,6 @@ pop_end_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
-```{r duration}
-trip_clean %>% 
-  select(duration_min, time_range) %>% 
-  ggplot(aes(x = duration_min)) + 
-  geom_histogram()
-
-```
 
 ```{r bike-use-over-a-day}
 # total 130 records of bike usages over 24 hrs
@@ -303,5 +296,24 @@ trip_clean %>%
        y = "count",
        title = "bike usage over 24 hours") +
   theme_minimal()
+```
+```{r}
+trip_clean %>% 
+  filter(duration_min < 24 * 60 & duration_min >= 1) %>% 
+  ggplot(aes(x = duration_min)) + 
+  geom_histogram()
+```
+```{r}
+# calculate the ratio where duration is less than 1 minute
+trip_clean %>% 
+  filter(duration_min < 1) %>% 
+  nrow() /
+  nrow(trip_clean)
+
+# calculate the ratio where people use over 24 hrs
+trip_clean %>% 
+  filter(duration_min >= 24 * 60) %>% 
+  nrow() / 
+  nrow(trip_clean)
 ```
 
