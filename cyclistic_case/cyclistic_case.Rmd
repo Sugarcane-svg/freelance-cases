@@ -235,7 +235,7 @@ trip_clean %>%
 ```
 
 # Visualization
-```{r}
+```{r user-type-ratio}
 trip_clean %>% 
   count(member_casual) %>% 
   mutate(membership_percentage = round(n/sum(n)*100,2)) %>% 
@@ -279,5 +279,29 @@ pop_end_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
+```{r duration}
+trip_clean %>% 
+  select(duration_min, time_range) %>% 
+  ggplot(aes(x = duration_min)) + 
+  geom_histogram()
 
+```
+
+```{r bike-use-over-a-day}
+# total 130 records of bike usages over 24 hrs
+trip_clean %>% 
+  filter(duration_min >= 24*60) %>% 
+  nrow()
+
+# the ratio of user types for these records
+trip_clean %>% 
+  filter(duration_min >= 24*60) %>% 
+  count(member_casual) %>% 
+  ggplot(aes(x = member_casual, y = n)) +
+  geom_col() +
+  labs(x = "user type",
+       y = "count",
+       title = "bike usage over 24 hours") +
+  theme_minimal()
+```
 
