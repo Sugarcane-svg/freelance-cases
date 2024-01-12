@@ -30,6 +30,11 @@ library(forcats)  # recorder bar-graph by value
 # Load Data
 
   There are 11 separated files indicate the trip condition of each month, so the first step is to combine the data into a whole dataset.
+  
+  The structure of data is shown below. From the summary statistics, there are 
+  * *7 categorical variables, 4 numeric variables, and 2 datetime variables*
+  * both *6751 missing values* in `end_lng`(ending longitute) and `end_lat`(ending latitute)
+  * about *15% to 17% of incomplete rate* in four categorical variables including `start_station_name, start_station_id, end_station_name, end_station_id`
 ```{r load-data}
 tripdata_01 <- read_csv("202301-divvy-tripdata.csv")
 tripdata_02 <- read_csv("202302-divvy-tripdata.csv")
@@ -55,21 +60,13 @@ tripdata <-
   rbind.data.frame(tripdata_09) %>% 
   rbind.data.frame(tripdata_10) %>% 
   rbind.data.frame(tripdata_11)
-```
 
-# Summary of Data
-
-The structure of data is shown below. From the summary statistics, there are 
-  * *7 categorical variables, 4 numeric variables, and 2 datetime variables*
-  * both *6751 missing values* in `end_lng`(ending longitute) and `end_lat`(ending latitute)
-  * about *15% to 17% of incomplete rate* in four categorical variables including `start_station_name, start_station_id, end_station_name, end_station_id`
-```{r}
 skim_without_charts(tripdata)
 ```
 
 ## Data Cleaning 
 
-  The name of columns are listed below. We are going to do:
+  The name of columns are listed below. I am going to do:
   1. remove duplicates
   2. remove records where end time is earlier than start time
   3. remove records with missing values
@@ -77,22 +74,41 @@ skim_without_charts(tripdata)
 ```{r name-of-columns}
 colnames(tripdata)
 ```
-#### Remove Duplicates
-```{r}
+```{r remove_duplicates}
 trip_no_dup <- 
   tripdata %>% 
   distinct()
 ```
-#### Remove Duration Less than 0
-```{r calculate-ride-duration}
+```{r remove-duration-less-than-0}
 trip_norm <- trip_no_dup %>% 
-  mutate(duration_min = round(as.numeric((ended_at - started_at)/60), 2)) %>% 
+  mutate(duration_min = round(as.numeric((ended_at - started_at)/60), 2)) %>% # convert second to min
   mutate(day_of_week = weekdays(started_at)) %>% 
   filter(duration_min > 0)
 ```
-```{r}
+```{r stats-of-duration}
+# summary of duration in minutes
+trip_norm %>% 
+  select(duration_min) %>% 
+  summary()
+```
+```{r calculate-the-duration-boundary}
+# calculate the ratio where duration is less than 1 minute
+trip_norm %>% 
+  filter(duration_min < 1) %>% 
+  nrow() /
+  nrow(trip_norm)
+
+# calculate the ratio where people use over 24 hrs
+trip_norm %>% 
+  filter(duration_min >= 24 * 60) %>% 
+  nrow() / 
+  nrow(trip_norm)
+```
+
+```{r keep-duration-in-bound}
 # define the time range for morning, afternoon, evening and nighttime
 trip_norm <- trip_norm %>% 
+  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
   mutate(started_date = as.Date(started_at),
          ended_date = as.Date(ended_at),
          started_time = paste(hour(started_at), minute(started_at), second(started_at), sep = ":"),
@@ -102,19 +118,18 @@ trip_norm <- trip_norm %>%
                                     ifelse(started_time >= "18:00:00" & started_time < "21:00:00", "evening(6pm-9pm)", "nighttime(9pm-6am)"))))
   
 ```
-
-#### Remove missing values
-```{r}
+```{r remove-missing-values}
 trip_clean <- trip_norm %>% 
   filter(str_length(start_station_id) > 0) %>% 
   filter(str_length(end_station_id) > 0) %>% 
   select(-c(start_lat, start_lng, end_lat, end_lng, started_at, ended_at, started_time, ended_time))  # remove longitude and latitude
 ```
 #### Summary After Cleaning
-```{r}
+```{r summary-after-cleaning}
 skim_without_charts(trip_clean)
 
-write_csv(trip_clean, "/Users/phoebezou/Documents/google_certificate/DA-DS_case_study/cyclistic_case/2023_tripClean.csv")
+# save file locally
+# write_csv(trip_clean, "/Users/phoebezou/Documents/google_certificate/DA-DS_case_study/cyclistic_case/trip_clean.csv")
 ```
 
 # Analyze Data
@@ -122,12 +137,7 @@ write_csv(trip_clean, "/Users/phoebezou/Documents/google_certificate/DA-DS_case_
 ```{r}
 colnames(trip_clean)  # double check the column name
 ```
-```{r}
-# summary of duration in minutes
-trip_clean %>% 
-  select(duration_min) %>% 
-  summary()
-```
+
 
 
 ```{r}
@@ -154,7 +164,7 @@ trip_clean %>%
 # start station
 pop_start_station <- 
   trip_clean %>% 
-  select(start_station_name, member_casual) %>%   # get station nane and membership status
+  select(start_station_name, member_casual) %>%   # get station name and membership status
   count(start_station_name, member_casual) %>%  # group and count by these value
   arrange(start_station_name) %>% 
   pivot_wider(names_from = member_casual, values_from = n) %>%  # transform table
@@ -206,29 +216,6 @@ pop_end_station %>%
 ```
 
 ```{r}
-# started date
-
-# check if a ride is over a day period
-trip_clean %>%
-  filter(duration_min >= 24 * 60)
-
-# check if a ride is over a month
-trip_clean %>%
-  filter(duration_min >= 24 * 60 * 30)
-
-pop_started_month <- trip_clean %>%
-  select(member_casual, started_date) %>%
-  mutate(start_month = month(started_date)) %>%
-  select(-started_date) %>% 
-  count(member_casual, start_month)
-```
-
-```{r}
-# time range
-pop_time_range <- trip_clean %>% 
-  select(member_casual, time_range) %>% 
-  count(member_casual, time_range)
-
 # double check the morning slot
 trip_clean %>% 
   filter(time_range == "morning(6am-12pm)")
@@ -279,48 +266,9 @@ pop_end_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
-
-```{r bike-use-over-a-day}
-# total 130 records of bike usages over 24 hrs
+```{r differentiate-by-days}
+# differentiate by user type
 trip_clean %>% 
-  filter(duration_min >= 24*60) %>% 
-  nrow()
-
-# the ratio of user types for these records
-trip_clean %>% 
-  filter(duration_min >= 24*60) %>% 
-  count(member_casual) %>% 
-  ggplot(aes(x = member_casual, y = n)) +
-  geom_col() +
-  labs(x = "user type",
-       y = "count",
-       title = "bike usage over 24 hours") +
-  theme_minimal()
-```
-```{r}
-trip_clean %>% 
-  filter(duration_min < 24 * 60 & duration_min >= 1) %>% 
-  ggplot(aes(x = duration_min)) + 
-  geom_freqpoly()
-```
-```{r}
-# calculate the ratio where duration is less than 1 minute
-trip_clean %>% 
-  filter(duration_min < 1) %>% 
-  nrow() /
-  nrow(trip_clean)
-
-# calculate the ratio where people use over 24 hrs
-trip_clean %>% 
-  filter(duration_min >= 24 * 60) %>% 
-  nrow() / 
-  nrow(trip_clean)
-```
-
-```{r}
-# differeciate by user type
-trip_clean %>% 
-  filter(duration_min<24*60 & duration_min >= 1) %>% 
   group_by(member_casual) %>% 
   count(day_of_week) %>% 
   arrange(desc(n)) %>% 
@@ -332,8 +280,8 @@ trip_clean %>%
        x = "days",
        y = "percentage") +
   theme_minimal() +
-  scale_fill_discrete(name = "user type")
-
+  scale_fill_discrete(name = "user type") # change legend name
+ 
 # bike use in days in general
 trip_clean %>% 
   filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
@@ -342,10 +290,9 @@ trip_clean %>%
   arrange(desc(n))
     
 ```
-```{r}
+```{r differentiate-by-time-range}
 # time range in general
 trip_clean %>% 
-  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
   count(time_range) %>% 
   mutate(n = n/sum(n),
          time_range = fct_reorder(time_range, desc(n))) %>% 
@@ -358,7 +305,6 @@ trip_clean %>%
 
 # time range by different user types
 trip_clean %>% 
-  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
   group_by(member_casual) %>% 
   count(time_range) %>% 
   mutate(n = n/sum(n),
@@ -369,6 +315,22 @@ trip_clean %>%
   labs(x = "time range",
        y = "numer of bike use in percentage",
        title = "bike usage in different time range in general") +
-  scale_fill_discrete(name = "user type")
+  scale_fill_discrete(name = "user type") # change legend name
+```
+
+```{r differentiate-in-month}
+trip_clean %>% 
+  mutate(start_month = month(started_date)) %>% 
+  select(start_month, member_casual) %>% 
+  count(member_casual, start_month) %>% 
+  group_by(member_casual) %>% 
+  mutate(n = n / sum(n)) %>% 
+  ggplot(aes(start_month, y = n, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  scale_fill_discrete(name = "user type") +
+  labs(x = "start month",
+       y = "bike usage in percentage",
+       title = "popular month to use bike by different user types") +
+  theme_minimal()
 ```
 
