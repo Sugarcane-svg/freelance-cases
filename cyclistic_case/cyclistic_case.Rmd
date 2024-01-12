@@ -331,7 +331,8 @@ trip_clean %>%
   labs(title = "bike usage in days differetiated by user types",
        x = "days",
        y = "percentage") +
-  theme_minimal()
+  theme_minimal() +
+  scale_fill_discrete(name = "user type")
 
 # bike use in days in general
 trip_clean %>% 
@@ -340,5 +341,34 @@ trip_clean %>%
   mutate(n = n/sum(n)) %>% 
   arrange(desc(n))
     
+```
+```{r}
+# time range in general
+trip_clean %>% 
+  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
+  count(time_range) %>% 
+  mutate(n = n/sum(n),
+         time_range = fct_reorder(time_range, desc(n))) %>% 
+  ggplot(aes(x = time_range, y = n)) + 
+  geom_col() + 
+  theme_minimal() + 
+  labs(x = "time range",
+       y = "numer of bike use in percentage",
+       title = "bike usage in different time range in general")
+
+# time range by different user types
+trip_clean %>% 
+  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
+  group_by(member_casual) %>% 
+  count(time_range) %>% 
+  mutate(n = n/sum(n),
+         time_range = fct_reorder(time_range, desc(n))) %>% 
+  ggplot(aes(x = time_range, y = n, fill = member_casual)) + 
+  geom_col(position = "dodge") + 
+  theme_minimal() + 
+  labs(x = "time range",
+       y = "numer of bike use in percentage",
+       title = "bike usage in different time range in general") +
+  scale_fill_discrete(name = "user type")
 ```
 
