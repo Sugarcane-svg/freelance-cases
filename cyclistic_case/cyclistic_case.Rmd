@@ -318,6 +318,7 @@ trip_clean %>%
 ```
 
 ```{r}
+# differeciate by user type
 trip_clean %>% 
   filter(duration_min<24*60 & duration_min >= 1) %>% 
   group_by(member_casual) %>% 
@@ -331,6 +332,13 @@ trip_clean %>%
        x = "days",
        y = "percentage") +
   theme_minimal()
+
+# bike use in days in general
+trip_clean %>% 
+  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
+  count(day_of_week) %>% 
+  mutate(n = n/sum(n)) %>% 
+  arrange(desc(n))
     
 ```
 
