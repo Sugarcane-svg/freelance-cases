@@ -158,7 +158,8 @@ than 3% of data points. Therefore, these data is good to disappear.
 
 In addition, I am interested in the time range of bike using. So, the
 data has been added another feature which extracted from the
-`started_at` and `ended_at`
+`started_at` and `ended_at`. The time has been splitted into 4 parts:
+morning, afternoon, evening and nighttime.
 
 ```{r keep-duration-in-bound}
 # define the time range for morning, afternoon, evening and nighttime
@@ -180,7 +181,7 @@ trip_norm <- trip_norm %>%
 trip_clean <- trip_norm %>% 
   filter(str_length(start_station_id) > 0) %>% 
   filter(str_length(end_station_id) > 0) %>% 
-  select(-c(start_lat, start_lng, end_lat, end_lng, started_at, ended_at, started_time, ended_time))  # remove longitude and latitude
+  select(-c(start_lat, start_lng, end_lat, end_lng, started_at, ended_at, started_time, ended_time, ride_id, start_station_id, end_station_id))  # remove longitude and latitude
 ```
 
 #### Summary After Cleaning
@@ -203,6 +204,8 @@ electric and docked
 Meanwhile, the number of member user is about double amount than the
 number of non-member user
 
+#### Rideable type
+
 ```{r}
 # the difference in rideable_type by different plans
 trip_clean %>% 
@@ -218,12 +221,25 @@ trip_clean %>%
   mutate(percentage = n / sum(n))
 ```
 
+#### Investigate NA
+
+Also, Base - 2132 W Hubbard is the only start station which member users
+start riding a bike, that is why some aggregation results appear 'NA'
+
 ```{r}
 # check why NA appear in some rows
 trip_clean %>% 
   select(member_casual, start_station_name) %>% 
   filter(start_station_name == "Base - 2132 W Hubbard")
+
 ```
+
+#### Start and end station
+
+Here, I am going to check if there are different start station
+preferences for both user type, and I replace NA with 0 because I find
+out that some station only member start with them. In addition, member
+users are more than non-member user in the most start station.
 
 ```{r}
 # start station
@@ -257,7 +273,7 @@ pop_start_station %>%
 # end station
 pop_end_station <- 
   trip_clean %>% 
-  select(end_station_name, member_casual) %>%   # get station nane and membership status
+  select(end_station_name, member_casual) %>%   # get station name and membership status
   count(end_station_name, member_casual) %>%  # group and count by these value
   arrange(end_station_name) %>% 
   pivot_wider(names_from = member_casual, values_from = n) %>%  # transform table
@@ -281,6 +297,10 @@ pop_end_station %>%
   head(10)
 ```
 
+Moreover, I found out that the morning slot has not records which may
+indicate that member and non-member users do not like to ride bikes in
+the morning, or maybe they tend to choose other vihecle to commute.
+
 ```{r}
 # double check the morning slot
 trip_clean %>% 
@@ -288,6 +308,18 @@ trip_clean %>%
 ```
 
 # Visualization
+
+#### User Type Ratio
+
+After all the cleaning, the overall ratio of user type indicates that
+member users are a lot more than non-member users. Since the data set
+does not contain the amount that users pay for, therefore, there is no
+way for me to understand how the price difference between the two.
+
+However, the thing is that the director of marketing believes the
+company\'s future success depends on maximizing the number of annual
+memberships. Consider for a long term goal in general, annual members
+are more likely to use the membership benefit, so they may
 
 ```{r user-type-ratio}
 trip_clean %>% 
