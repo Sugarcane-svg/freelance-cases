@@ -316,10 +316,8 @@ member users are a lot more than non-member users. Since the data set
 does not contain the amount that users pay for, therefore, there is no
 way for me to understand how the price difference between the two.
 
-However, the thing is that the director of marketing believes the
-company\'s future success depends on maximizing the number of annual
-memberships. Consider for a long term goal in general, annual members
-are more likely to use the membership benefit, so they may
+However, it is better to retain current member and obtain potential
+member to maximize the profit for a long run.
 
 ```{r user-type-ratio}
 trip_clean %>% 
@@ -334,6 +332,16 @@ trip_clean %>%
        y = "percentage") 
   
 ```
+
+#### Top 5 start/end station
+
+the top 5 station is determined by the total number of users. Compare
+both plots, the popular start station and end station are the same. In
+addition, it is interesting that *Streeter Dr & Grand Ave* has large
+amount of casual users, and member users are more than non-member user
+in *Clark St & Elm St*. However, there are no corresponding geographic
+datasets to see the location and distance, otherwise, I may be able to
+see why such phenomenon.
 
 ```{r top-5-start-station}
 pop_start_station %>% 
@@ -364,7 +372,12 @@ pop_end_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
+#### Days
 
+  From the below statistics, the usage of bike seems roughly equally distributed. However, as the plot shows that there are more member users on Monday through Thursday, and it turns opposite from Friday to Sunday. 
+  
+  The trend to use bikes in days between two types of users are opposite as well. Member users seem to use bike in weekdays and the amount of usage decrease on weekends. Moreover, non-member users are more likely to use bike when the day approach to weekends and Saturday is the peak.
+  
 ```{r differentiate-by-days}
 # differentiate by user type
 trip_clean %>% 
@@ -383,13 +396,13 @@ trip_clean %>%
  
 # bike use in days in general
 trip_clean %>% 
-  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
   count(day_of_week) %>% 
   mutate(n = n/sum(n)) %>% 
   arrange(desc(n))
-    
 ```
+#### Time range in a day
 
+  The general plot shows that most of users like to use bikes around 12pm-6pm. During the time, as the user type plot shows that casual users are more than member users, and member users are more than non-member users during nighttime. But it cannot conclude, without more information, that member users like to use bike in nighttime.
 ```{r differentiate-by-time-range}
 # time range in general
 trip_clean %>% 
@@ -414,10 +427,12 @@ trip_clean %>%
   theme_minimal() + 
   labs(x = "time range",
        y = "numer of bike use in percentage",
-       title = "bike usage in different time range in general") +
+       title = "bike usage in different time range by user type") +
   scale_fill_discrete(name = "user type") # change legend name
 ```
+#### Month
 
+  the plot below shows the difference in month that the condition of bike usage for both type of users. I would say that the individual blue and red bar are roughly bell curves, the blue(member) spreads wider, and the red(casual) is more center. Both type of users increase from the 4th month and reach the peak(the 7th month) then decrease.
 ```{r differentiate-in-month}
 trip_clean %>% 
   mutate(start_month = month(started_date)) %>% 
