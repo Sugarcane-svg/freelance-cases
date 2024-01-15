@@ -403,6 +403,8 @@ trip_clean %>%
 #### Time range in a day
 
   The general plot shows that most of users like to use bikes around 12pm-6pm. During the time, as the user type plot shows that casual users are more than member users, and member users are more than non-member users during nighttime. But it cannot conclude, without more information, that member users like to use bike in nighttime.
+  
+  It is pretty interesting that the least popular time range to ride a bike during a day is evening(6pm-9pm). Maybe there would be some data indicate the purpose of using bikes will reveal more insights. 
 ```{r differentiate-by-time-range}
 # time range in general
 trip_clean %>% 
@@ -432,7 +434,9 @@ trip_clean %>%
 ```
 #### Month
 
-  the plot below shows the difference in month that the condition of bike usage for both type of users. I would say that the individual blue and red bar are roughly bell curves, the blue(member) spreads wider, and the red(casual) is more center. Both type of users increase from the 4th month and reach the peak(the 7th month) then decrease.
+  the plot below shows the difference in month that the condition of bike usage for both type of users. I would say that the individual blue and red bar are roughly bell curves, the blue(member) spreads wider, and the red(casual) is more center. Both type of users increase from April and reach the peak(July for red and August for blue) then decrease. However, the increase of red bar during the time period is higher than the increase of blue bar, and from May to September, the non-member users are more than member users. On the contrary, member users appear to be more than non-member user after September(exclude December because I do not have the data available at the moment) and before May. 
+  
+  It could be the warmer weather, the more likely people start to use bike. But it needs more investigation to conform.
 ```{r differentiate-in-month}
 trip_clean %>% 
   mutate(start_month = month(started_date)) %>% 
@@ -448,3 +452,24 @@ trip_clean %>%
        title = "popular month to use bike by different user types") +
   theme_minimal()
 ```
+
+
+```{r}
+trip_clean %>% 
+  count(started_date, member_casual) %>% 
+  ggplot(aes(x = started_date, y = n)) + 
+  geom_line() +
+  facet_wrap(~ member_casual) +
+  labs(x = "date",
+       y = "number of bike usages",
+       title = "Janunary 2023 to November 2023 bike usages for member/casual users") +
+  theme_minimal()
+```
+
+```{r}
+trip_clean %>% 
+  count(started_date, member_casual) %>% 
+  filter(member_casual == "casual") %>% 
+  arrange(started_date)
+```
+
