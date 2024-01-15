@@ -37,6 +37,7 @@ library(stringr)  # work with text
 library(lubridate)  # extract date and time
 library(ggplot2)  # visualization
 library(forcats)  # recorder graph by value
+library(gghighlight)  # highlight data points for ggplot
 ```
 
 # Load Data
@@ -452,24 +453,33 @@ trip_clean %>%
        title = "popular month to use bike by different user types") +
   theme_minimal()
 ```
+#### Overall time series
 
+  From the time series, casual users seem to have larger variation from April to October, and smaller variation before April and after October. There is an abnormal peak happens on April 15th. It is Tax Day on calendar, not sure why it happens so far.
+  
+  The time series for member users appear pretty stable variation, but there is a huge drop on July 2nd, could it be vacation? or other activities?
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 trip_clean %>% 
   count(started_date, member_casual) %>% 
+  ungroup() %>% 
   ggplot(aes(x = started_date, y = n)) + 
   geom_line() +
-  facet_wrap(~ member_casual) +
+  geom_point() +
+  facet_wrap(~member_casual) +
   labs(x = "date",
        y = "number of bike usages",
        title = "Janunary 2023 to November 2023 bike usages for member/casual users") +
-  theme_minimal()
+  theme_minimal() +
+  gghighlight(n == 11416 | n == 2247)
 ```
 
 ```{r}
-trip_clean %>% 
-  count(started_date, member_casual) %>% 
-  filter(member_casual == "casual") %>% 
-  arrange(started_date)
+# investigate the date points
+# trip_clean %>%
+#   count(started_date, member_casual) %>%
+#   filter(member_casual == "member", started_date > "2023-06-30") %>%
+#   arrange(started_date) %>%
+#   ungroup()
 ```
 
