@@ -490,7 +490,7 @@ trip_clean %>%
 ```{r}
 section <- c("rideable type", "top 5 start/end station", "date", "time range", "month", "overall time series")
 member <- c("classic, electric", "only 'Clark St & Elm St' has more member users", "More members use bike from Monday to Thursday", "members is more than casuals at nighttime(9pm-6am)", "more members in Jan. to April, and Oct. to Nov.", "cliff on July 2nd, no significant peak")
-casual <- c("classic, electric, docked", "only 'Clark St & Elm St' shows less non-member users", "non-members are more than members from Friday to Sunday, and Saturday is a peak")
+casual <- c("classic, electric, docked", "only 'Clark St & Elm St' shows less non-member users", "non-members are more than members from Friday to Sunday, and Saturday is a peak", "casual users are more than members during afternoon(12pm-6pm)", "casual users has higher increase from May to Sep.", "")
 ```
     
 
