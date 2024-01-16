@@ -373,7 +373,7 @@ pop_end_station %>%
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90))
 ```
-#### Days
+#### Date
 
   From the below statistics, the usage of bike seems roughly equally distributed. However, as the plot shows that there are more member users on Monday through Thursday, and it turns opposite from Friday to Sunday. 
   
@@ -390,7 +390,7 @@ trip_clean %>%
   ggplot(aes(x = day_of_week, y = n, fill = member_casual)) +
   geom_col(position = "dodge") +
   labs(title = "bike usage in days differetiated by user types",
-       x = "days",
+       x = "date",
        y = "percentage") +
   theme_minimal() +
   scale_fill_discrete(name = "user type") # change legend name
@@ -482,4 +482,15 @@ trip_clean %>%
 #   arrange(started_date) %>%
 #   ungroup()
 ```
+# Conclusion
+
+  Assumption: 
+    In the dataset, I am focusing on the majority which users use bikes within a day instead of minority which bikes' usage is over 24 hours.
+    
+```{r}
+section <- c("rideable type", "top 5 start/end station", "date", "time range", "month", "overall time series")
+member <- c("classic, electric", "only 'Clark St & Elm St' has more member users", "More members use bike from Monday to Thursday", "members is more than casuals at nighttime(9pm-6am)", "more members in Jan. to April, and Oct. to Nov.", "cliff on July 2nd, no significant peak")
+casual <- c("classic, electric, docked", "only 'Clark St & Elm St' shows less non-member users", "non-members are more than members from Friday to Sunday, and Saturday is a peak")
+```
+    
 
