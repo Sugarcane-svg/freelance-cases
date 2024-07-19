@@ -1,0 +1,496 @@
+---
+title: "Cyclistic Case Study"
+output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Business Task
+
+determine the difference between casual bike usage and annual member
+
+# Stakeholders
+
+-   executive team
+-   director of marketing
+-   marketing analytics team
+
+# Data Source
+
+The [data](https://divvy-tripdata.s3.amazonaws.com/index.html) has been
+made available by Motivate International Inc. under this
+[license](https://divvybikes.com/data-license-agreement).
+
+The html page lists multiple data sets in .zip file, in order to
+accomplish the business task, I am going to use the most recent data
+which contains the 11 months trip data:
+(`202301-divvy-tripdata.zip) - (202311-divvy-tripdata.zip)`.
+
+With large size of data set, the spreadsheet is not ideal to finish the
+task. Therefore, RStudio is preferred.
+
+```{r load-library}
+library(tidyverse)
+library(skimr)  # summary stats
+library(stringr)  # work with text
+library(lubridate)  # extract date and time
+library(ggplot2)  # visualization
+library(forcats)  # recorder graph by value
+library(gghighlight)  # highlight data points for ggplot
+```
+
+# Load Data
+
+There are 11 separated files indicate the trip condition of each month,
+so the first step is to combine the data into a whole data set.
+
+The structure of data is shown below. From the summary statistics, there
+are
+
+-   *7 categorical variables*
+
+-   *4 numeric variables*
+
+-   *2 datetime variables*
+
+-   some variables contains bunch *of missing values*
+
+    -   `end_lng`(ending longitude) and `end_lat`(ending latitude)
+        contains 6751 missings
+
+    -   about *15% to 17% of incomplete rate* in four categorical
+        variables including
+        `start_station_name, start_station_id, end_station_name, end_station_id`
+
+```{r load-data}
+tripdata_01 <- read_csv("202301-divvy-tripdata.csv")
+tripdata_02 <- read_csv("202302-divvy-tripdata.csv")
+tripdata_03 <- read_csv("202303-divvy-tripdata.csv")
+tripdata_04 <- read_csv("202304-divvy-tripdata.csv")
+tripdata_05 <- read_csv("202305-divvy-tripdata.csv")
+tripdata_06 <- read_csv("202306-divvy-tripdata.csv")
+tripdata_07 <- read_csv("202307-divvy-tripdata.csv")
+tripdata_08 <- read_csv("202308-divvy-tripdata.csv")
+tripdata_09 <- read_csv("202309-divvy-tripdata.csv")
+tripdata_10 <- read_csv("202310-divvy-tripdata.csv")
+tripdata_11 <- read_csv("202311-divvy-tripdata.csv")
+
+tripdata <- 
+  tripdata_01 %>% 
+  rbind.data.frame(tripdata_02) %>% 
+  rbind.data.frame(tripdata_03) %>% 
+  rbind.data.frame(tripdata_04) %>% 
+  rbind.data.frame(tripdata_05) %>% 
+  rbind.data.frame(tripdata_06) %>% 
+  rbind.data.frame(tripdata_07) %>% 
+  rbind.data.frame(tripdata_08) %>% 
+  rbind.data.frame(tripdata_09) %>% 
+  rbind.data.frame(tripdata_10) %>% 
+  rbind.data.frame(tripdata_11)
+
+skim_without_charts(tripdata)
+```
+
+## Data Cleaning
+
+The over view of column names are shown below
+
+```{r name-of-columns}
+colnames(tripdata)
+```
+
+I am going to do:
+
+1.  remove duplicates
+2.  remove records where end time is earlier than start time
+3.  remove records with missing values
+
+#### Remove duplicates
+
+```{r remove_duplicates}
+trip_no_dup <- 
+  tripdata %>% 
+  distinct()
+```
+
+#### Remove duration less than 0
+
+```{r remove-duration-less-than-0}
+trip_norm <- trip_no_dup %>% 
+  mutate(duration_min = round(as.numeric((ended_at - started_at)/60), 2)) %>% # convert second to min
+  mutate(day_of_week = weekdays(started_at)) %>% 
+  filter(duration_min > 0)
+```
+
+After removing the 0-duration, I see that there are outliers in both
+upper bound and lower bound for the `duration_min` variable. Therefore,
+I go ahead and check the percentage where duration is less than 1 minute
+and more than 24 hours to make sure they do not account for lots of data
+points.
+
+```{r stats-of-duration}
+# summary of duration in minutes
+trip_norm %>% 
+  select(duration_min) %>% 
+  summary()
+```
+
+```{r calculate-the-duration-boundary}
+# calculate the ratio where duration is less than 1 minute
+less_than_1 <- trip_norm %>% 
+  filter(duration_min < 1) %>% 
+  nrow() /
+  nrow(trip_norm)
+
+# calculate the ratio where people use over 24 hrs
+greater_than_24 <- trip_norm %>% 
+  filter(duration_min >= 24 * 60) %>% 
+  nrow() / 
+  nrow(trip_norm)
+
+paste("the duration less than 1 is about ", round(less_than_1*100, 2), "% of the overall records")
+paste("the duration less than 1 is about ", round(greater_than_24*100, 2), "% of the overall records")
+```
+
+After the calculation, and I see that the total duration which include
+less than 1 minute and greater than 24 hours only account for no more
+than 3% of data points. Therefore, these data is good to disappear.
+
+In addition, I am interested in the time range of bike using. So, the
+data has been added another feature which extracted from the
+`started_at` and `ended_at`. The time has been splitted into 4 parts:
+morning, afternoon, evening and nighttime.
+
+```{r keep-duration-in-bound}
+# define the time range for morning, afternoon, evening and nighttime
+trip_norm <- trip_norm %>% 
+  filter(duration_min >= 1 & duration_min < 24 * 60) %>% 
+  mutate(started_date = as.Date(started_at),
+         ended_date = as.Date(ended_at),
+         started_time = paste(hour(started_at), minute(started_at), second(started_at), sep = ":"),
+         ended_time = paste(hour(ended_at), minute(ended_at), second(ended_at), sep = ":"),
+         time_range = ifelse(started_time >= "6:00:00" & started_time < "12:00:00", "morning(6am-12pm)",
+                             ifelse(started_time >= "12:00:00" & started_time < "18:00:00", "afternoon(12pm-6pm)",
+                                    ifelse(started_time >= "18:00:00" & started_time < "21:00:00", "evening(6pm-9pm)", "nighttime(9pm-6am)"))))
+  
+```
+
+#### Remove missing value
+
+```{r remove-missing-values}
+trip_clean <- trip_norm %>% 
+  filter(str_length(start_station_id) > 0) %>% 
+  filter(str_length(end_station_id) > 0) %>% 
+  select(-c(start_lat, start_lng, end_lat, end_lng, started_at, ended_at, started_time, ended_time, ride_id, start_station_id, end_station_id))  # remove longitude and latitude
+```
+
+#### Summary After Cleaning
+
+```{r summary-after-cleaning}
+skim_without_charts(trip_clean)
+
+# save file locally
+# write_csv(trip_clean, "/Users/phoebezou/Documents/google_certificate/DA-DS_case_study/cyclistic_case/trip_clean.csv")
+```
+
+# Analyze Data
+
+For the annual member, there are only two bike types being used: classic
+and electric
+
+for the non-member user, there are three bike types being used: classic,
+electric and docked
+
+Meanwhile, the number of member user is about double amount than the
+number of non-member user
+
+#### Rideable type
+
+```{r}
+# the difference in rideable_type by different plans
+trip_clean %>% 
+  select(rideable_type, member_casual) %>% 
+  count(member_casual, rideable_type) %>% 
+  pivot_wider(names_from = rideable_type, values_from = n) %>% 
+  replace(is.na(.), 0)
+
+# the overall difference by different plans
+trip_clean %>% 
+  select(member_casual) %>% 
+  count(member_casual) %>% 
+  mutate(percentage = n / sum(n))
+```
+
+#### Investigate NA
+
+Also, Base - 2132 W Hubbard is the only start station which member users
+start riding a bike, that is why some aggregation results appear 'NA'
+
+```{r}
+# check why NA appear in some rows
+trip_clean %>% 
+  select(member_casual, start_station_name) %>% 
+  filter(start_station_name == "Base - 2132 W Hubbard")
+
+```
+
+#### Start and end station
+
+Here, I am going to check if there are different start station
+preferences for both user type, and I replace NA with 0 because I find
+out that some station only member start with them. In addition, member
+users are more than non-member user in the most start station.
+
+```{r}
+# start station
+pop_start_station <- 
+  trip_clean %>% 
+  select(start_station_name, member_casual) %>%   # get station name and membership status
+  count(start_station_name, member_casual) %>%  # group and count by these value
+  arrange(start_station_name) %>% 
+  pivot_wider(names_from = member_casual, values_from = n) %>%  # transform table
+  as.data.frame() %>%
+  replace(is.na(.),0) %>% # fill na w. 0
+  mutate(member_greater_than_casual = member - casual > 0,
+         total_user = casual + member)  # get stats
+
+# overall no. of member stats vs no. of casual by station name
+pop_start_station %>%
+  count(member_greater_than_casual)
+
+# top 10 start station for member
+pop_start_station %>%
+  arrange(desc(member)) %>%
+  head(10)
+
+# top 10 start station for casual
+pop_start_station %>%
+  arrange(desc(casual)) %>%
+  head(10)
+```
+
+```{r}
+# end station
+pop_end_station <- 
+  trip_clean %>% 
+  select(end_station_name, member_casual) %>%   # get station name and membership status
+  count(end_station_name, member_casual) %>%  # group and count by these value
+  arrange(end_station_name) %>% 
+  pivot_wider(names_from = member_casual, values_from = n) %>%  # transform table
+  as.data.frame() %>%
+  replace(is.na(.),0) %>% # fill na w. 0
+  mutate(member_greater_than_casual = member - casual > 0,
+         total_user = casual + member)  # get stats
+
+# overall no. of member stats vs no. of casual by stai=tion name
+pop_end_station %>%
+  count(member_greater_than_casual)
+
+# top 10 start station for member
+pop_end_station %>%
+  arrange(desc(member)) %>%
+  head(10)
+
+# top 10 start station for casual
+pop_end_station %>%
+  arrange(desc(casual)) %>%
+  head(10)
+```
+
+Moreover, I found out that the morning slot has not records which may
+indicate that member and non-member users do not like to ride bikes in
+the morning, or maybe they tend to choose other vihecle to commute.
+
+```{r}
+# double check the morning slot
+trip_clean %>% 
+  filter(time_range == "morning(6am-12pm)")
+```
+
+# Visualization
+
+#### User Type Ratio
+
+After all the cleaning, the overall ratio of user type indicates that
+member users are a lot more than non-member users. Since the data set
+does not contain the amount that users pay for, therefore, there is no
+way for me to understand how the price difference between the two.
+
+However, it is better to retain current member and obtain potential
+member to maximize the profit for a long run.
+
+```{r user-type-ratio}
+trip_clean %>% 
+  count(member_casual) %>% 
+  mutate(membership_percentage = round(n/sum(n)*100,2)) %>% 
+  ggplot(aes(x = member_casual, y = membership_percentage, label = membership_percentage)) +
+  geom_col() +
+  geom_text(vjust = -0.5) +
+  theme_minimal() + 
+  labs(title = "Ratio of user types",
+       x = "user types",
+       y = "percentage") 
+  
+```
+
+#### Top 5 start/end station
+
+the top 5 station is determined by the total number of users. Compare
+both plots, the popular start station and end station are the same. In
+addition, it is interesting that *Streeter Dr & Grand Ave* has large
+amount of casual users, and member users are more than non-member user
+in *Clark St & Elm St*. However, there are no corresponding geographic
+datasets to see the location and distance, otherwise, I may be able to
+see why such phenomenon.
+
+```{r top-5-start-station}
+pop_start_station %>% 
+  pivot_longer(cols = c(casual, member), names_to = "user_types") %>% 
+  group_by(start_station_name) %>% 
+  arrange(desc(total_user)) %>% 
+  head(10) %>% 
+  ggplot(aes(x = fct_rev(fct_reorder(start_station_name, value)), y = value)) + # reorder the name of station by the value
+  geom_col(aes(fill = user_types), position = "dodge") +
+  labs(title = "Top 5 start station names with different user types",
+       x = "start station",
+       y = "number of users") + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r top-5-end-station}
+pop_end_station %>% 
+  pivot_longer(cols = c(casual, member), names_to = "user_types") %>% 
+  group_by(end_station_name) %>% 
+  arrange(desc(total_user)) %>% 
+  head(10) %>% 
+  ggplot(aes(x = fct_rev(fct_reorder(end_station_name, value)), y = value)) + 
+  geom_col(aes(fill = user_types), position = "dodge") +
+  labs(title = "Top 5 end station names with different user types",
+       x = "end station",
+       y = "number of users") + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+#### Date
+
+  From the below statistics, the usage of bike seems roughly equally distributed. However, as the plot shows that there are more member users on Monday through Thursday, and it turns opposite from Friday to Sunday. 
+  
+  The trend to use bikes in days between two types of users are opposite as well. Member users seem to use bike in weekdays and the amount of usage decrease on weekends. Moreover, non-member users are more likely to use bike when the day approach to weekends and Saturday is the peak.
+  
+```{r differentiate-by-days}
+# differentiate by user type
+trip_clean %>% 
+  group_by(member_casual) %>% 
+  count(day_of_week) %>% 
+  arrange(desc(n)) %>% 
+  mutate(n = n/sum(n),
+         day_of_week = fct_reorder(day_of_week, n)) %>% 
+  ggplot(aes(x = day_of_week, y = n, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "bike usage in days differetiated by user types",
+       x = "date",
+       y = "percentage") +
+  theme_minimal() +
+  scale_fill_discrete(name = "user type") # change legend name
+ 
+# bike use in days in general
+trip_clean %>% 
+  count(day_of_week) %>% 
+  mutate(n = n/sum(n)) %>% 
+  arrange(desc(n))
+```
+#### Time range in a day
+
+  The general plot shows that most of users like to use bikes around 12pm-6pm. During the time, as the user type plot shows that casual users are more than member users, and member users are more than non-member users during nighttime. But it cannot conclude, without more information, that member users like to use bike in nighttime.
+  
+  It is pretty interesting that the least popular time range to ride a bike during a day is evening(6pm-9pm). Maybe there would be some data indicate the purpose of using bikes will reveal more insights. 
+```{r differentiate-by-time-range}
+# time range in general
+trip_clean %>% 
+  count(time_range) %>% 
+  mutate(n = n/sum(n),
+         time_range = fct_reorder(time_range, desc(n))) %>% 
+  ggplot(aes(x = time_range, y = n)) + 
+  geom_col() + 
+  theme_minimal() + 
+  labs(x = "time range",
+       y = "numer of bike use in percentage",
+       title = "bike usage in different time range in general")
+
+# time range by different user types
+trip_clean %>% 
+  group_by(member_casual) %>% 
+  count(time_range) %>% 
+  mutate(n = n/sum(n),
+         time_range = fct_reorder(time_range, desc(n))) %>% 
+  ggplot(aes(x = time_range, y = n, fill = member_casual)) + 
+  geom_col(position = "dodge") + 
+  theme_minimal() + 
+  labs(x = "time range",
+       y = "numer of bike use in percentage",
+       title = "bike usage in different time range by user type") +
+  scale_fill_discrete(name = "user type") # change legend name
+```
+#### Month
+
+  the plot below shows the difference in month that the condition of bike usage for both type of users. I would say that the individual blue and red bar are roughly bell curves, the blue(member) spreads wider, and the red(casual) is more center. Both type of users increase from April and reach the peak(July for red and August for blue) then decrease. However, the increase of red bar during the time period is higher than the increase of blue bar, and from May to September, the non-member users are more than member users. On the contrary, member users appear to be more than non-member user after September(exclude December because I do not have the data available at the moment) and before May. 
+  
+  It could be the warmer weather, the more likely people start to use bike. But it needs more investigation to conform.
+```{r differentiate-in-month}
+trip_clean %>% 
+  mutate(start_month = month(started_date)) %>% 
+  select(start_month, member_casual) %>% 
+  count(member_casual, start_month) %>% 
+  group_by(member_casual) %>% 
+  mutate(n = n / sum(n)) %>% 
+  ggplot(aes(start_month, y = n, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  scale_fill_discrete(name = "user type") +
+  labs(x = "start month",
+       y = "bike usage in percentage",
+       title = "popular month to use bike by different user types") +
+  theme_minimal()
+```
+#### Overall time series
+
+  From the time series, casual users seem to have larger variation from April to October, and smaller variation before April and after October. There is an abnormal peak happens on April 15th. It is Tax Day on calendar, not sure why it happens so far.
+  
+  The time series for member users appear pretty stable variation, but there is a huge drop on July 2nd, could it be vacation? or other activities?
+
+```{r message=FALSE, warning=FALSE}
+trip_clean %>% 
+  count(started_date, member_casual) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = started_date, y = n)) + 
+  geom_line() +
+  geom_point() +
+  facet_wrap(~member_casual) +
+  labs(x = "date",
+       y = "number of bike usages",
+       title = "Janunary 2023 to November 2023 bike usages for member/casual users") +
+  theme_minimal() +
+  gghighlight(n == 11416 | n == 2247)
+```
+
+```{r}
+# investigate the date points
+# trip_clean %>%
+#   count(started_date, member_casual) %>%
+#   filter(member_casual == "member", started_date > "2023-06-30") %>%
+#   arrange(started_date) %>%
+#   ungroup()
+```
+# Conclusion
+
+  Assumption: 
+    In the dataset, I am focusing on the majority which users use bikes within a day instead of minority which bikes' usage is over 24 hours.
+    
+```{r}
+section <- c("rideable type", "top 5 start/end station", "date", "time range", "month", "overall time series")
+member <- c("classic, electric", "only 'Clark St & Elm St' has more member users", "More members use bike from Monday to Thursday", "members is more than casuals at nighttime(9pm-6am)", "more members in Jan. to April, and Oct. to Nov.", "cliff on July 2nd, no significant peak")
+casual <- c("classic, electric, docked", "only 'Clark St & Elm St' shows less non-member users", "non-members are more than members from Friday to Sunday, and Saturday is a peak", "casual users are more than members during afternoon(12pm-6pm)", "casual users has higher increase from May to Sep.", "")
+```
+    
+
